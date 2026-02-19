@@ -55,6 +55,26 @@ Type a prefix and press `Tab` to insert:
 | `analogscale` | Analog scaling formula |
 | `region` | REGION fold block |
 
+### IntelliSense / Autocomplete
+
+Real-time autocomplete as you type:
+
+- **Keywords** - All SCL block, variable and control flow keywords with documentation
+- **Data types** - All S7 data types with size info (suggested automatically after `:`)
+- **System functions** - Type conversions, math, string, scaling functions with parameter info
+- **`#` variables** - Type `#` to see all declared variables in the current block
+- **`%` addresses** - Type `%` to get I/Q/M address suggestions
+- **`"` block references** - Type `"` to see all block names in the file
+- **`.` member access** - Timer/Counter outputs (Q, ET, CV) after dot
+
+### Hover Documentation
+
+Hover over any keyword, data type or system function to see documentation.
+
+### Signature Help
+
+Parameter hints when calling system functions - shows parameter names and types as you type.
+
 ### Code Folding
 
 Automatic folding for:
