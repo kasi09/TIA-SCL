@@ -1,0 +1,64 @@
+{
+  "name": "tia-scl",
+  "displayName": "TIA-SCL",
+  "description": "Siemens SCL (Structured Control Language) syntax highlighting, snippets and autocomplete for TIA Portal",
+  "version": "0.1.0",
+  "publisher": "kasi09",
+  "author": {
+    "name": "kasi09"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kasi09/TIA-SCL"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "scl",
+    "siemens",
+    "tia portal",
+    "plc",
+    "structured control language",
+    "structured text",
+    "iec 61131",
+    "s7",
+    "automation"
+  ],
+  "icon": "icons/tia-scl-icon.png",
+  "contributes": {
+    "languages": [
+      {
+        "id": "scl",
+        "aliases": [
+          "SCL",
+          "Structured Control Language",
+          "TIA SCL"
+        ],
+        "extensions": [
+          ".scl",
+          ".SCL"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "scl",
+        "scopeName": "source.scl",
+        "path": "./syntaxes/scl.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "scl",
+        "path": "./snippets/scl.snippets.json"
+      }
+    ]
+  }
+}

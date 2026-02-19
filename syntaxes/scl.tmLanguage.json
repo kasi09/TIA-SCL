@@ -1,0 +1,284 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SCL",
+  "scopeName": "source.scl",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#pragma" },
+    { "include": "#block-declarations" },
+    { "include": "#var-sections" },
+    { "include": "#control-flow" },
+    { "include": "#operators" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#constants" },
+    { "include": "#data-types" },
+    { "include": "#system-functions" },
+    { "include": "#addresses" },
+    { "include": "#instance-access" },
+    { "include": "#db-access" },
+    { "include": "#hash-variables" },
+    { "include": "#keywords" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.scl",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.scl",
+          "begin": "\\(\\*",
+          "end": "\\*\\)"
+        }
+      ]
+    },
+    "pragma": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.pragma.scl",
+          "match": "\\{[^}]*\\}"
+        }
+      ]
+    },
+    "block-declarations": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.block.scl",
+          "match": "\\b(FUNCTION_BLOCK|END_FUNCTION_BLOCK|FUNCTION|END_FUNCTION|ORGANIZATION_BLOCK|END_ORGANIZATION_BLOCK|DATA_BLOCK|END_DATA_BLOCK|TYPE|END_TYPE|PROGRAM|END_PROGRAM)\\b"
+        },
+        {
+          "name": "keyword.other.block.scl",
+          "match": "\\b(INSTANCE_DB\\s+OF|BEGIN|VERSION|TITLE|AUTHOR|FAMILY|KNOW_HOW_PROTECT|NON_RETAIN)\\b"
+        },
+        {
+          "name": "keyword.other.region.scl",
+          "match": "\\b(REGION|END_REGION)\\b"
+        }
+      ]
+    },
+    "var-sections": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.var.scl",
+          "match": "\\b(VAR_INPUT|VAR_OUTPUT|VAR_IN_OUT|VAR_TEMP|VAR_GLOBAL|VAR\\s+CONSTANT|VAR|END_VAR|STRUCT|END_STRUCT|CONST|END_CONST)\\b"
+        }
+      ]
+    },
+    "control-flow": {
+      "patterns": [
+        {
+          "name": "keyword.control.scl",
+          "match": "\\b(IF|THEN|ELSIF|ELSE|END_IF|FOR|TO|BY|DO|END_FOR|WHILE|END_WHILE|REPEAT|UNTIL|END_REPEAT|CASE|OF|END_CASE|RETURN|EXIT|CONTINUE|GOTO)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.scl",
+          "match": "\\b(AND|OR|XOR|NOT|MOD)\\b"
+        },
+        {
+          "name": "keyword.operator.assignment.scl",
+          "match": ":=|=>|\\?="
+        },
+        {
+          "name": "keyword.operator.comparison.scl",
+          "match": "<>|<=|>=|<|>|="
+        },
+        {
+          "name": "keyword.operator.arithmetic.scl",
+          "match": "\\+|-|\\*|/|\\*\\*"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.scl",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.scl",
+              "match": "\\$[LNPRT$']|\\$[0-9A-Fa-f]{2,4}"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.scl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.scl",
+              "match": "\\$[LNPRT$\"]|\\$[0-9A-Fa-f]{2,4}"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.time.scl",
+          "match": "\\b(T|TIME|LT|LTIME)#(-?)(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?(\\d+ms)?\\b",
+          "comment": "Time literals: T#5s, TIME#1h30m, T#100ms"
+        },
+        {
+          "name": "constant.numeric.date.scl",
+          "match": "\\b(D|DATE)#\\d{4}-\\d{2}-\\d{2}\\b",
+          "comment": "Date literals: D#2024-01-15"
+        },
+        {
+          "name": "constant.numeric.datetime.scl",
+          "match": "\\b(DT|DATE_AND_TIME|DTL)#[\\d-T:.]+\\b",
+          "comment": "DateTime literals"
+        },
+        {
+          "name": "constant.numeric.tod.scl",
+          "match": "\\b(TOD|TIME_OF_DAY|LTOD)#\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?\\b",
+          "comment": "Time of day literals"
+        },
+        {
+          "name": "constant.numeric.hex.scl",
+          "match": "\\b(16#[0-9A-Fa-f_]+)\\b",
+          "comment": "Hex literals: 16#FF00"
+        },
+        {
+          "name": "constant.numeric.octal.scl",
+          "match": "\\b(8#[0-7_]+)\\b",
+          "comment": "Octal literals"
+        },
+        {
+          "name": "constant.numeric.binary.scl",
+          "match": "\\b(2#[01_]+)\\b",
+          "comment": "Binary literals: 2#1010_0101"
+        },
+        {
+          "name": "constant.numeric.float.scl",
+          "match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b",
+          "comment": "Float literals: 3.14, 1.0e-5"
+        },
+        {
+          "name": "constant.numeric.integer.scl",
+          "match": "\\b\\d+\\b",
+          "comment": "Integer literals"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.scl",
+          "match": "\\b(TRUE|FALSE)\\b"
+        },
+        {
+          "name": "constant.language.null.scl",
+          "match": "\\b(NULL)\\b"
+        }
+      ]
+    },
+    "data-types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.scl",
+          "match": "\\b(Bool|Byte|Char|WChar|Int|UInt|SInt|USInt|DInt|UDInt|LInt|ULInt|Word|DWord|LWord|Real|LReal|String|WString|Time|LTime|Date|Date_And_Time|DTL|Time_Of_Day|S5Time|Void|Any|Pointer)\\b"
+        },
+        {
+          "name": "support.type.complex.scl",
+          "match": "\\b(Array|Struct|Variant|DB_ANY|HW_ANY|HW_IO|HW_DEVICE|HW_DPMASTER|HW_DPSLAVE|HW_IOSYSTEM|HW_SUBMODULE|PIP|Conn_Any|EVENT_ANY|EVENT_ATT|EVENT_HWINT|OB_ANY|OB_DELAY|OB_TOD|OB_CYCLIC|OB_ATT|OB_PCYCLE|OB_HWINT|OB_DIAG|OB_TIMEERROR|OB_STARTUP)\\b"
+        },
+        {
+          "name": "support.type.counter-timer.scl",
+          "match": "\\b(IEC_TIMER|IEC_COUNTER|IEC_SCOUNTER|IEC_DCOUNTER|IEC_UCOUNTER|IEC_UDCOUNTER|IEC_LTIMER|TON|TOF|TP|CTU|CTD|CTUD|TONR)\\b"
+        }
+      ]
+    },
+    "system-functions": {
+      "patterns": [
+        {
+          "name": "support.function.conversion.scl",
+          "match": "\\b(BOOL_TO_INT|BYTE_TO_INT|CHAR_TO_INT|DINT_TO_INT|DINT_TO_REAL|DWORD_TO_REAL|INT_TO_DINT|INT_TO_REAL|REAL_TO_DINT|REAL_TO_INT|REAL_TO_STRING|STRING_TO_INT|STRING_TO_REAL|WORD_TO_INT|INT_TO_WORD|DWORD_TO_DINT|DINT_TO_DWORD|BYTE_TO_CHAR|CHAR_TO_BYTE|BOOL_TO_BYTE|BYTE_TO_BOOL|WORD_TO_BOOL|BOOL_TO_WORD|DWORD_TO_BOOL|BOOL_TO_DWORD|INT_TO_STRING|DINT_TO_STRING|REAL_TO_LREAL|LREAL_TO_REAL|UINT_TO_INT|INT_TO_UINT|UDINT_TO_DINT|DINT_TO_UDINT)\\b"
+        },
+        {
+          "name": "support.function.math.scl",
+          "match": "\\b(ABS|SQR|SQRT|EXP|EXPD|LN|LOG|ACOS|ASIN|ATAN|COS|SIN|TAN|MAX|MIN|LIMIT|SEL|MUX|MOVE|CEIL|FLOOR|TRUNC|ROUND|FRAC)\\b"
+        },
+        {
+          "name": "support.function.string.scl",
+          "match": "\\b(LEN|LEFT|RIGHT|MID|CONCAT|DELETE|INSERT|REPLACE|FIND|S_CONV)\\b"
+        },
+        {
+          "name": "support.function.system.scl",
+          "match": "\\b(RD_SYS_T|WR_SYS_T|T_ADD|T_SUB|T_DIFF|T_CONV|T_COMBINE|T_SPLIT|PEEK|POKE|PEEK_BOOL|POKE_BOOL|FILL_BLK|UMOVE_BLK|UBLKMOV|BLKMOV|Serialize|Deserialize|SCALE_X|NORM_X|SCATTER|GATHER|SWAP|LOWER_BOUND|UPPER_BOUND|CountOfElements|TypeOf|TypeOfElements|IS_NULL|NOT_NULL|DELETE_DB|CREATE_DB|ATTR_DB|READ_DBL|WRIT_DBL|COMPRESS|SET_CLK|RD_LOC_T|SET_TIMEZONE|GET_ERR_ID|GET_ERROR|RUNTIME|RE_TRIGR|STP|DPNRM_DG|DPRD_DAT|DPWR_DAT|RDREC|WRREC|RALRM|RCVREC|TCON|TDISCON|TSEND|TRCV|TUSEND|TURCV)\\b"
+        },
+        {
+          "name": "support.function.edge.scl",
+          "match": "\\b(R_TRIG|F_TRIG)\\b"
+        }
+      ]
+    },
+    "addresses": {
+      "patterns": [
+        {
+          "name": "variable.other.address.input.scl",
+          "match": "%I[BWDL]?\\d+(\\.\\d+)?",
+          "comment": "Input addresses: %I0.0, %IW64, %ID10"
+        },
+        {
+          "name": "variable.other.address.output.scl",
+          "match": "%Q[BWDL]?\\d+(\\.\\d+)?",
+          "comment": "Output addresses: %Q0.0, %QW80"
+        },
+        {
+          "name": "variable.other.address.memory.scl",
+          "match": "%M[BWDL]?\\d+(\\.\\d+)?",
+          "comment": "Memory addresses: %M0.0, %MW100, %MD200"
+        },
+        {
+          "name": "variable.other.address.db.scl",
+          "match": "%DB\\d+\\.DB[BWDLX]\\d+(\\.\\d+)?",
+          "comment": "DB absolute addresses: %DB1.DBW0"
+        }
+      ]
+    },
+    "instance-access": {
+      "patterns": [
+        {
+          "name": "variable.other.instance.scl",
+          "match": "\\bENO\\b|\\bEN\\b",
+          "comment": "Enable/EnableOut system variables"
+        }
+      ]
+    },
+    "db-access": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.db-reference.scl",
+          "match": "\"[A-Za-z_][A-Za-z0-9_]*\"",
+          "comment": "DB/block references in double quotes: \"DB_Name\".Variable"
+        }
+      ]
+    },
+    "hash-variables": {
+      "patterns": [
+        {
+          "name": "variable.other.local.scl",
+          "match": "#[A-Za-z_][A-Za-z0-9_.]*",
+          "comment": "Local/instance variables: #Enable, #Motor1.Speed"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.scl",
+          "match": "\\b(AT|OF|ARRAY|REF_TO|THIS|PROTECTED|PUBLIC|PRIVATE|INTERNAL|ABSTRACT|FINAL|OVERRIDE|IMPLEMENTS|EXTENDS|INTERFACE|END_INTERFACE|CLASS|END_CLASS|METHOD|END_METHOD|PROPERTY|END_PROPERTY|GET|SET|LABEL|END_LABEL|REF|RETAIN|CONSTANT)\\b"
+        }
+      ]
+    }
+  }
+}

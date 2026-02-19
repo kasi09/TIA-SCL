@@ -1,0 +1,236 @@
+(* ============================================================
+   TIA-SCL Demo File
+   This file demonstrates all syntax highlighting features
+   ============================================================ *)
+
+// ─── User Defined Type ─────────────────────────────────────
+TYPE "UDT_MotorData"
+VERSION : 0.1
+
+STRUCT
+    Enable : Bool;
+    Running : Bool;
+    Error : Bool;
+    ErrorCode : Int := 0;
+    Speed : Real := 0.0;
+    RunHours : DInt := 0;
+END_STRUCT;
+
+END_TYPE
+
+
+// ─── Function Block ────────────────────────────────────────
+FUNCTION_BLOCK "FB_MotorControl"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+// Motor control with startup delay and feedback monitoring
+
+VAR_INPUT
+    Start : Bool;           // Start command
+    Stop : Bool;            // Stop command
+    Speed_SP : Real := 0.0; // Speed setpoint 0-100%
+    FeedbackTime : Time := T#5s;  // Feedback timeout
+END_VAR
+
+VAR_OUTPUT
+    Running : Bool;         // Motor is running
+    Speed_PV : Real := 0.0; // Actual speed
+    Error : Bool := false;  // Error active
+    ErrorCode : Int := 0;   // Error code
+END_VAR
+
+VAR_IN_OUT
+    MotorData : "UDT_MotorData"; // Motor status data
+END_VAR
+
+VAR
+    State : Int := 0;
+    StartupTimer : TON;
+    FeedbackTimer : TON;
+    EdgeStart : R_TRIG;
+    EdgeStop : F_TRIG;
+    RunCommand : Bool := false;
+    AlarmWord : Word := 16#0000;
+    CycleCount : DInt := 0;
+    TempArray : Array[0..9] of Real;
+END_VAR
+
+VAR_TEMP
+    i : Int;
+    TempCalc : Real;
+END_VAR
+
+VAR CONSTANT
+    MAX_SPEED : Real := 100.0;
+    MIN_SPEED : Real := 0.0;
+    STARTUP_TIME : Time := T#3s;
+END_VAR
+
+BEGIN
+    // Edge detection
+    #EdgeStart(CLK := #Start,
+               Q => #RunCommand);
+    #EdgeStop(CLK := #Stop);
+
+    // State machine
+    CASE #State OF
+        0: // IDLE
+            #Running := FALSE;
+            #Speed_PV := 0.0;
+            IF #RunCommand AND NOT #Error THEN
+                #State := 10;
+                #CycleCount := #CycleCount + 1;
+            END_IF;
+
+        10: // STARTING
+            #StartupTimer(IN := TRUE,
+                          PT := #STARTUP_TIME);
+            IF #StartupTimer.Q THEN
+                #State := 20;
+                #StartupTimer(IN := FALSE);
+            END_IF;
+
+        20: // RUNNING
+            #Running := TRUE;
+            // Speed limiting
+            IF #Speed_SP > #MAX_SPEED THEN
+                #Speed_PV := #MAX_SPEED;
+            ELSIF #Speed_SP < #MIN_SPEED THEN
+                #Speed_PV := #MIN_SPEED;
+            ELSE
+                #Speed_PV := #Speed_SP;
+            END_IF;
+
+            // Check for stop
+            IF #Stop OR #Error THEN
+                #State := 30;
+            END_IF;
+
+        30: // STOPPING
+            #Running := FALSE;
+            #Speed_PV := 0.0;
+            #State := 0;
+
+        ELSE
+            #State := 0; // Error recovery
+    END_CASE;
+
+    // Update motor data struct
+    #MotorData.Enable := #Start;
+    #MotorData.Running := #Running;
+    #MotorData.Error := #Error;
+    #MotorData.ErrorCode := #ErrorCode;
+    #MotorData.Speed := #Speed_PV;
+
+    // Clear temp array
+    FOR #i := 0 TO 9 BY 1 DO
+        #TempArray[#i] := 0.0;
+    END_FOR;
+
+    REGION Diagnostics
+        // Alarm handling
+        IF #Error THEN
+            #AlarmWord := #AlarmWord OR 16#0001;
+        ELSE
+            #AlarmWord := #AlarmWord AND 16#FFFE;
+        END_IF;
+    END_REGION
+END_FUNCTION_BLOCK
+
+
+// ─── Function ──────────────────────────────────────────────
+FUNCTION "FC_AnalogScale" : Real
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+// Linear scaling of analog input values
+
+VAR_INPUT
+    RawValue : Int;            // Raw input (0-27648)
+    EngMin : Real := 0.0;     // Engineering minimum
+    EngMax : Real := 100.0;   // Engineering maximum
+END_VAR
+
+VAR_TEMP
+    Normalized : Real;
+END_VAR
+
+BEGIN
+    // Normalize to 0.0 .. 1.0
+    #Normalized := INT_TO_REAL(#RawValue) / 27648.0;
+
+    // Scale to engineering range
+    #FC_AnalogScale := #EngMin + (#Normalized * (#EngMax - #EngMin));
+
+    // Clamp output
+    IF #FC_AnalogScale > #EngMax THEN
+        #FC_AnalogScale := #EngMax;
+    ELSIF #FC_AnalogScale < #EngMin THEN
+        #FC_AnalogScale := #EngMin;
+    END_IF;
+END_FUNCTION
+
+
+// ─── Data Block ────────────────────────────────────────────
+DATA_BLOCK "DB_ProcessData"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+// Global process data storage
+
+VAR
+    Motor1_Run : Bool := false;
+    Motor2_Run : Bool := false;
+    Valve1_Open : Bool := false;
+    Temperature : Real := 0.0;
+    Pressure : Real := 0.0;
+    Level : Real := 0.0;
+    Speed_SP : Real := 0.0;
+    AlarmWord : Word := 16#0000;
+    BatchCounter : DInt := 0;
+    ProductName : String := 'Default';
+    Timestamp : DTL;
+    MotorStatus : "UDT_MotorData";
+END_VAR
+
+BEGIN
+END_DATA_BLOCK
+
+
+// ─── Instance DB ───────────────────────────────────────────
+DATA_BLOCK "DB_Motor1"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+"FB_MotorControl"
+
+BEGIN
+   Speed_SP := 75.0;
+   FeedbackTime := T#10s;
+END_DATA_BLOCK
+
+
+// ─── Organization Block ────────────────────────────────────
+ORGANIZATION_BLOCK "Main [OB1]"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+// Main scan cycle
+
+VAR_TEMP
+    TempScaled : Real;
+END_VAR
+
+BEGIN
+    // Scale analog input
+    #TempScaled := "FC_AnalogScale"(RawValue := %IW64,
+                                     EngMin := 0.0,
+                                     EngMax := 100.0);
+    "DB_ProcessData".Temperature := #TempScaled;
+
+    // Call motor control
+    "DB_Motor1"(Start := %I0.0,
+                Stop := %I0.1,
+                Speed_SP := "DB_ProcessData".Speed_SP,
+                MotorData := "DB_ProcessData".MotorStatus);
+
+    // Write outputs
+    %Q0.0 := "DB_Motor1".Running;
+    %Q0.1 := "DB_Motor1".Error;
+END_ORGANIZATION_BLOCK

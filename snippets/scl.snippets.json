@@ -1,0 +1,402 @@
+{
+  "Function Block": {
+    "prefix": ["fb", "function_block"],
+    "body": [
+      "FUNCTION_BLOCK \"${1:FB_Name}\"",
+      "{ S7_Optimized_Access := 'TRUE' }",
+      "VERSION : 0.1",
+      "// ${2:Description}",
+      "",
+      "VAR_INPUT",
+      "    ${3:Enable} : ${4:Bool};",
+      "END_VAR",
+      "",
+      "VAR_OUTPUT",
+      "    ${5:Done} : ${6:Bool};",
+      "END_VAR",
+      "",
+      "VAR",
+      "    ${7:State} : ${8:Int} := ${9:0};",
+      "END_VAR",
+      "",
+      "BEGIN",
+      "    $0",
+      "END_FUNCTION_BLOCK"
+    ],
+    "description": "Function Block (FB) with Input/Output/Static sections"
+  },
+  "Function": {
+    "prefix": ["fc", "function"],
+    "body": [
+      "FUNCTION \"${1:FC_Name}\" : ${2:Void}",
+      "{ S7_Optimized_Access := 'TRUE' }",
+      "VERSION : 0.1",
+      "// ${3:Description}",
+      "",
+      "VAR_INPUT",
+      "    ${4:Value} : ${5:Int};",
+      "END_VAR",
+      "",
+      "VAR_TEMP",
+      "    ${6:TempVar} : ${7:Real};",
+      "END_VAR",
+      "",
+      "BEGIN",
+      "    $0",
+      "END_FUNCTION"
+    ],
+    "description": "Function (FC) with return type"
+  },
+  "Organization Block": {
+    "prefix": ["ob", "organization_block"],
+    "body": [
+      "ORGANIZATION_BLOCK \"${1:Main [OB1]}\"",
+      "{ S7_Optimized_Access := 'TRUE' }",
+      "VERSION : 0.1",
+      "// ${2:Main scan cycle}",
+      "",
+      "BEGIN",
+      "    $0",
+      "END_ORGANIZATION_BLOCK"
+    ],
+    "description": "Organization Block (OB)"
+  },
+  "Data Block": {
+    "prefix": ["db", "data_block"],
+    "body": [
+      "DATA_BLOCK \"${1:DB_Name}\"",
+      "{ S7_Optimized_Access := 'TRUE' }",
+      "VERSION : 0.1",
+      "// ${2:Description}",
+      "",
+      "VAR",
+      "    ${3:Variable} : ${4:Bool} := ${5:false};",
+      "    $0",
+      "END_VAR",
+      "",
+      "BEGIN",
+      "END_DATA_BLOCK"
+    ],
+    "description": "Global Data Block (DB)"
+  },
+  "Instance Data Block": {
+    "prefix": ["idb", "instance_db"],
+    "body": [
+      "DATA_BLOCK \"${1:DB_Instance}\"",
+      "{ S7_Optimized_Access := 'TRUE' }",
+      "VERSION : 0.1",
+      "\"${2:FB_Name}\"",
+      "",
+      "BEGIN",
+      "    $0",
+      "END_DATA_BLOCK"
+    ],
+    "description": "Instance Data Block for an FB"
+  },
+  "User Defined Type": {
+    "prefix": ["udt", "type"],
+    "body": [
+      "TYPE \"${1:UDT_Name}\"",
+      "VERSION : 0.1",
+      "// ${2:Description}",
+      "",
+      "STRUCT",
+      "    ${3:Member1} : ${4:Bool};",
+      "    $0",
+      "END_STRUCT;",
+      "",
+      "END_TYPE"
+    ],
+    "description": "User Defined Type (UDT / Struct)"
+  },
+  "VAR_INPUT Section": {
+    "prefix": "var_input",
+    "body": [
+      "VAR_INPUT",
+      "    ${1:Name} : ${2:Bool};",
+      "    $0",
+      "END_VAR"
+    ],
+    "description": "VAR_INPUT section"
+  },
+  "VAR_OUTPUT Section": {
+    "prefix": "var_output",
+    "body": [
+      "VAR_OUTPUT",
+      "    ${1:Name} : ${2:Bool};",
+      "    $0",
+      "END_VAR"
+    ],
+    "description": "VAR_OUTPUT section"
+  },
+  "VAR_IN_OUT Section": {
+    "prefix": "var_inout",
+    "body": [
+      "VAR_IN_OUT",
+      "    ${1:Name} : ${2:Bool};",
+      "    $0",
+      "END_VAR"
+    ],
+    "description": "VAR_IN_OUT section"
+  },
+  "VAR Section": {
+    "prefix": "var",
+    "body": [
+      "VAR",
+      "    ${1:Name} : ${2:Int} := ${3:0};",
+      "    $0",
+      "END_VAR"
+    ],
+    "description": "VAR (static/local) section"
+  },
+  "VAR_TEMP Section": {
+    "prefix": "var_temp",
+    "body": [
+      "VAR_TEMP",
+      "    ${1:Name} : ${2:Int};",
+      "    $0",
+      "END_VAR"
+    ],
+    "description": "VAR_TEMP section"
+  },
+  "IF THEN": {
+    "prefix": "if",
+    "body": [
+      "IF ${1:condition} THEN",
+      "    ${2:// statement};",
+      "END_IF;"
+    ],
+    "description": "IF THEN END_IF"
+  },
+  "IF THEN ELSE": {
+    "prefix": "ife",
+    "body": [
+      "IF ${1:condition} THEN",
+      "    ${2:// true branch};",
+      "ELSE",
+      "    ${3:// false branch};",
+      "END_IF;"
+    ],
+    "description": "IF THEN ELSE END_IF"
+  },
+  "IF ELSIF ELSE": {
+    "prefix": "ifei",
+    "body": [
+      "IF ${1:condition1} THEN",
+      "    ${2:// branch 1};",
+      "ELSIF ${3:condition2} THEN",
+      "    ${4:// branch 2};",
+      "ELSE",
+      "    ${5:// else branch};",
+      "END_IF;"
+    ],
+    "description": "IF ELSIF ELSE END_IF"
+  },
+  "FOR Loop": {
+    "prefix": "for",
+    "body": [
+      "FOR #${1:i} := ${2:0} TO ${3:10} BY ${4:1} DO",
+      "    $0",
+      "END_FOR;"
+    ],
+    "description": "FOR TO BY DO END_FOR"
+  },
+  "WHILE Loop": {
+    "prefix": "while",
+    "body": [
+      "WHILE ${1:condition} DO",
+      "    $0",
+      "END_WHILE;"
+    ],
+    "description": "WHILE DO END_WHILE"
+  },
+  "REPEAT UNTIL": {
+    "prefix": "repeat",
+    "body": [
+      "REPEAT",
+      "    $0",
+      "UNTIL ${1:condition}",
+      "END_REPEAT;"
+    ],
+    "description": "REPEAT UNTIL END_REPEAT"
+  },
+  "CASE OF": {
+    "prefix": "case",
+    "body": [
+      "CASE #${1:variable} OF",
+      "    ${2:0}:",
+      "        ${3:// case 0};",
+      "    ${4:1}:",
+      "        ${5:// case 1};",
+      "    ELSE",
+      "        ${6:// default};",
+      "END_CASE;"
+    ],
+    "description": "CASE OF END_CASE"
+  },
+  "Region": {
+    "prefix": "region",
+    "body": [
+      "REGION ${1:Region Name}",
+      "    $0",
+      "END_REGION"
+    ],
+    "description": "REGION END_REGION (code folding)"
+  },
+  "Array Declaration": {
+    "prefix": "array",
+    "body": [
+      "${1:Name} : Array[${2:0}..${3:9}] of ${4:Int};"
+    ],
+    "description": "Array variable declaration"
+  },
+  "TON Timer": {
+    "prefix": "ton",
+    "body": [
+      "#${1:TimerName}(IN := ${2:#Enable},",
+      "             PT := ${3:T#5s},",
+      "             Q => ${4:#TimerDone},",
+      "             ET => ${5:#TimerElapsed});"
+    ],
+    "description": "TON (On-delay timer) call"
+  },
+  "TOF Timer": {
+    "prefix": "tof",
+    "body": [
+      "#${1:TimerName}(IN := ${2:#Enable},",
+      "             PT := ${3:T#5s},",
+      "             Q => ${4:#TimerDone},",
+      "             ET => ${5:#TimerElapsed});"
+    ],
+    "description": "TOF (Off-delay timer) call"
+  },
+  "TP Timer": {
+    "prefix": "tp",
+    "body": [
+      "#${1:TimerName}(IN := ${2:#Trigger},",
+      "            PT := ${3:T#1s},",
+      "            Q => ${4:#PulseOut},",
+      "            ET => ${5:#TimerElapsed});"
+    ],
+    "description": "TP (Pulse timer) call"
+  },
+  "CTU Counter": {
+    "prefix": "ctu",
+    "body": [
+      "#${1:CounterName}(CU := ${2:#CountPulse},",
+      "              R := ${3:#Reset},",
+      "              PV := ${4:100},",
+      "              Q => ${5:#CountDone},",
+      "              CV => ${6:#CountValue});"
+    ],
+    "description": "CTU (Count up) call"
+  },
+  "R_TRIG Rising Edge": {
+    "prefix": "rtrig",
+    "body": [
+      "#${1:EdgeName}(CLK := ${2:#Signal},",
+      "           Q => ${3:#RisingEdge});"
+    ],
+    "description": "R_TRIG (Rising edge detection)"
+  },
+  "F_TRIG Falling Edge": {
+    "prefix": "ftrig",
+    "body": [
+      "#${1:EdgeName}(CLK := ${2:#Signal},",
+      "           Q => ${3:#FallingEdge});"
+    ],
+    "description": "F_TRIG (Falling edge detection)"
+  },
+  "FB Call": {
+    "prefix": "call",
+    "body": [
+      "\"${1:DB_Instance}\"(${2:Input1} := ${3:#Value1},",
+      "                ${4:Input2} := ${5:#Value2},",
+      "                ${6:Output1} => ${7:#Result1});"
+    ],
+    "description": "Function Block instance call"
+  },
+  "NORM_X Normalize": {
+    "prefix": "norm",
+    "body": [
+      "#${1:NormValue} := NORM_X(MIN := ${2:0},",
+      "                       VALUE := ${3:#RawValue},",
+      "                       MAX := ${4:27648});"
+    ],
+    "description": "NORM_X normalize value to 0.0..1.0"
+  },
+  "SCALE_X Scale": {
+    "prefix": "scale",
+    "body": [
+      "#${1:ScaledValue} := SCALE_X(MIN := ${2:0.0},",
+      "                          VALUE := ${3:#NormValue},",
+      "                          MAX := ${4:100.0});"
+    ],
+    "description": "SCALE_X scale value from 0.0..1.0 to range"
+  },
+  "Motor Control Pattern": {
+    "prefix": "motor",
+    "body": [
+      "// Motor Control: ${1:Motor1}",
+      "IF #${1:Motor1}_Start AND NOT #${1:Motor1}_Stop AND NOT #${1:Motor1}_Error THEN",
+      "    #${1:Motor1}_Running := TRUE;",
+      "    #${1:Motor1}_Cmd := TRUE;",
+      "ELSIF #${1:Motor1}_Stop OR #${1:Motor1}_Error THEN",
+      "    #${1:Motor1}_Running := FALSE;",
+      "    #${1:Motor1}_Cmd := FALSE;",
+      "END_IF;",
+      "",
+      "// Feedback check",
+      "IF #${1:Motor1}_Cmd AND NOT #${1:Motor1}_Feedback THEN",
+      "    // Start feedback timer",
+      "    $0",
+      "END_IF;"
+    ],
+    "description": "Basic motor start/stop control pattern"
+  },
+  "State Machine": {
+    "prefix": "statemachine",
+    "body": [
+      "// State Machine",
+      "CASE #${1:State} OF",
+      "    0: // ${2:IDLE}",
+      "        IF ${3:#Start} THEN",
+      "            #${1:State} := 10;",
+      "        END_IF;",
+      "",
+      "    10: // ${4:RUNNING}",
+      "        ${5:// Process logic}",
+      "        IF ${6:#Done} THEN",
+      "            #${1:State} := 20;",
+      "        END_IF;",
+      "",
+      "    20: // ${7:COMPLETE}",
+      "        #${1:State} := 0;",
+      "",
+      "    ELSE",
+      "        #${1:State} := 0; // Error recovery",
+      "END_CASE;"
+    ],
+    "description": "State machine pattern with CASE"
+  },
+  "Analog Scaling": {
+    "prefix": "analogscale",
+    "body": [
+      "// Analog Scaling: ${1:Sensor}",
+      "#${2:ScaledValue} := (INT_TO_REAL(#${3:RawValue}) - ${4:0.0}) * (${5:100.0} - ${6:0.0}) / (${7:27648.0} - ${8:0.0}) + ${6:0.0};"
+    ],
+    "description": "Linear analog scaling formula"
+  },
+  "PID Note": {
+    "prefix": "pid",
+    "body": [
+      "// PID Controller Call",
+      "\"${1:PID_Instance}\"(SetPoint := #${2:Setpoint},",
+      "                  Input := #${3:ProcessValue},",
+      "                  ManualEnable := ${4:FALSE},",
+      "                  ManualValue := ${5:0.0},",
+      "                  Output => #${6:ControlOutput});"
+    ],
+    "description": "PID controller call pattern"
+  }
+}
