@@ -75,6 +75,33 @@ Hover over any keyword, data type or system function to see documentation.
 
 Parameter hints when calling system functions - shows parameter names and types as you type.
 
+### Linter / Diagnostics
+
+Real-time error checking as you type:
+
+**Errors (red):**
+| Code | Check |
+|---|---|
+| SCL001 | Unmatched control flow (IF without END_IF, FOR without END_FOR, ...) |
+| SCL002 | Unmatched VAR sections (VAR_INPUT without END_VAR) |
+| SCL003 | Unmatched block declarations (FUNCTION_BLOCK without END_FUNCTION_BLOCK) |
+| SCL004 | Duplicate variable names in same block |
+| SCL005 | EXIT/CONTINUE outside of a loop |
+
+**Warnings (yellow):**
+| Code | Check |
+|---|---|
+| SCL101 | Unused variables (declared but never referenced) |
+| SCL102 | Missing VERSION declaration |
+| SCL103 | Missing S7_Optimized_Access pragma |
+| SCL104 | CASE statement without ELSE branch |
+| SCL105 | Empty BEGIN section (no code) |
+
+**Hints (grey):**
+| Code | Check |
+|---|---|
+| SCL201 | Naming convention (FB_, FC_, DB_ prefix suggestion) |
+
 ### Code Folding
 
 Automatic folding for:

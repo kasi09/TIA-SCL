@@ -2,7 +2,7 @@
   "name": "tia-scl",
   "displayName": "TIA-SCL",
   "description": "Siemens SCL (Structured Control Language) syntax highlighting, snippets and autocomplete for TIA Portal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "kasi09",
   "author": "kasi09",
   "license": "MIT",
@@ -15,7 +15,8 @@
   },
   "categories": [
     "Programming Languages",
-    "Snippets"
+    "Snippets",
+    "Linters"
   ],
   "keywords": [
     "scl",

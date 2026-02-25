@@ -34,7 +34,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode4 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 
 // src/completionProvider.ts
 var vscode = __toESM(require("vscode"));
@@ -483,11 +483,643 @@ var SclSignatureHelpProvider = class {
   }
 };
 
+// src/linter.ts
+var vscode5 = __toESM(require("vscode"));
+
+// src/parser.ts
+var BLOCK_PAIRS = {
+  "FUNCTION_BLOCK": "END_FUNCTION_BLOCK",
+  "FUNCTION": "END_FUNCTION",
+  "ORGANIZATION_BLOCK": "END_ORGANIZATION_BLOCK",
+  "DATA_BLOCK": "END_DATA_BLOCK",
+  "TYPE": "END_TYPE"
+};
+var BLOCK_END_TO_OPEN = {};
+for (const [open, close] of Object.entries(BLOCK_PAIRS)) {
+  BLOCK_END_TO_OPEN[close] = open;
+}
+var VAR_OPENS = /* @__PURE__ */ new Set([
+  "VAR_INPUT",
+  "VAR_OUTPUT",
+  "VAR_IN_OUT",
+  "VAR_TEMP",
+  "VAR_GLOBAL",
+  "VAR",
+  "STRUCT"
+]);
+var CONTROL_PAIRS = {
+  "IF": "END_IF",
+  "FOR": "END_FOR",
+  "WHILE": "END_WHILE",
+  "REPEAT": "END_REPEAT",
+  "CASE": "END_CASE",
+  "REGION": "END_REGION"
+};
+var CONTROL_END_TO_OPEN = {};
+for (const [open, close] of Object.entries(CONTROL_PAIRS)) {
+  CONTROL_END_TO_OPEN[close] = open;
+}
+var LOOP_KEYWORDS = /* @__PURE__ */ new Set(["FOR", "WHILE", "REPEAT"]);
+function parse(text) {
+  const lines = text.split(/\r?\n/);
+  const result = {
+    blocks: [],
+    variables: [],
+    usedVariables: /* @__PURE__ */ new Set(),
+    unmatchedOpens: [],
+    unmatchedCloses: [],
+    exitOutsideLoop: []
+  };
+  const blockStack = [];
+  const varStack = [];
+  const controlStack = [];
+  let currentBlock = null;
+  let currentVarSection = "";
+  let inBlockComment = false;
+  let afterBegin = false;
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    let line = lines[lineIdx];
+    if (inBlockComment) {
+      const endIdx = line.indexOf("*)");
+      if (endIdx >= 0) {
+        line = " ".repeat(endIdx + 2) + line.substring(endIdx + 2);
+        inBlockComment = false;
+      } else {
+        continue;
+      }
+    }
+    line = stripBlockComments(line);
+    if (line.includes("(*")) {
+      inBlockComment = true;
+      line = line.substring(0, line.indexOf("(*"));
+    }
+    const commentIdx = lineCommentIndex(line);
+    if (commentIdx >= 0) {
+      line = line.substring(0, commentIdx);
+    }
+    const originalLine = line;
+    line = stripStrings(line);
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const upper = trimmed.toUpperCase();
+    const hashVarRegex = /#([A-Za-z_]\w*)/g;
+    let hvMatch;
+    while ((hvMatch = hashVarRegex.exec(originalLine)) !== null) {
+      result.usedVariables.add(hvMatch[1].toLowerCase());
+    }
+    if (trimmed.startsWith("{") && currentBlock) {
+      currentBlock.hasPragma = true;
+      continue;
+    }
+    if (upper.startsWith("VERSION") && currentBlock) {
+      currentBlock.hasVersion = true;
+      continue;
+    }
+    let handled = false;
+    for (const openKw of Object.keys(BLOCK_PAIRS)) {
+      if (matchKeyword(upper, openKw)) {
+        const name = extractBlockName(originalLine);
+        const block = {
+          type: openKw,
+          name,
+          line: lineIdx,
+          endLine: -1,
+          hasVersion: false,
+          hasPragma: false,
+          hasBegin: false,
+          hasCode: false,
+          hasCaseElse: /* @__PURE__ */ new Map()
+        };
+        result.blocks.push(block);
+        currentBlock = block;
+        blockStack.push({ keyword: openKw, line: lineIdx, col: 0 });
+        afterBegin = false;
+        handled = true;
+        break;
+      }
+    }
+    if (handled) continue;
+    for (const closeKw of Object.keys(BLOCK_END_TO_OPEN)) {
+      if (matchKeyword(upper, closeKw)) {
+        if (blockStack.length > 0) {
+          const top = blockStack[blockStack.length - 1];
+          if (BLOCK_PAIRS[top.keyword] === closeKw) {
+            blockStack.pop();
+            if (currentBlock) currentBlock.endLine = lineIdx;
+            currentBlock = null;
+            afterBegin = false;
+          } else {
+            result.unmatchedCloses.push({ keyword: closeKw, line: lineIdx, col: 0 });
+          }
+        } else {
+          result.unmatchedCloses.push({ keyword: closeKw, line: lineIdx, col: 0 });
+        }
+        handled = true;
+        break;
+      }
+    }
+    if (handled) continue;
+    if (upper === "BEGIN") {
+      if (currentBlock) currentBlock.hasBegin = true;
+      afterBegin = true;
+      continue;
+    }
+    if (matchKeyword(upper, "END_VAR") || matchKeyword(upper, "END_STRUCT")) {
+      if (varStack.length > 0) {
+        varStack.pop();
+        currentVarSection = varStack.length > 0 ? varStack[varStack.length - 1].keyword : "";
+      } else {
+        result.unmatchedCloses.push({
+          keyword: upper.startsWith("END_STRUCT") ? "END_STRUCT" : "END_VAR",
+          line: lineIdx,
+          col: 0
+        });
+      }
+      continue;
+    }
+    if (upper.startsWith("VAR") && upper.includes("CONSTANT") && !upper.startsWith("VAR_")) {
+      currentVarSection = "VAR_CONSTANT";
+      varStack.push({ keyword: "VAR_CONSTANT", line: lineIdx, col: 0 });
+      continue;
+    }
+    let varMatched = false;
+    for (const varKw of VAR_OPENS) {
+      if (matchKeyword(upper, varKw)) {
+        currentVarSection = varKw;
+        varStack.push({ keyword: varKw, line: lineIdx, col: 0 });
+        varMatched = true;
+        break;
+      }
+    }
+    if (varMatched) continue;
+    if (currentVarSection && !afterBegin) {
+      const varMatch = trimmed.match(/^(\w+)\s*:\s*(.+?)(?:\s*:=\s*.+?)?\s*;/);
+      if (varMatch) {
+        const varName = varMatch[1];
+        let varType = varMatch[2].trim().replace(/;$/, "").trim();
+        if (!isKeyword(varName)) {
+          result.variables.push({
+            name: varName,
+            type: varType,
+            section: currentVarSection,
+            block: currentBlock?.name || "",
+            line: lineIdx,
+            col: trimmed.indexOf(varName)
+          });
+        }
+        continue;
+      }
+      const simpleMatch = trimmed.match(/^(\w+)\s*:\s*(\S+)/);
+      if (simpleMatch && !isKeyword(simpleMatch[1])) {
+        result.variables.push({
+          name: simpleMatch[1],
+          type: simpleMatch[2].replace(/;$/, "").trim(),
+          section: currentVarSection,
+          block: currentBlock?.name || "",
+          line: lineIdx,
+          col: 0
+        });
+      }
+      continue;
+    }
+    if (afterBegin) {
+      if (currentBlock && trimmed !== ";" && !upper.startsWith("END_")) {
+        currentBlock.hasCode = true;
+      }
+      if (matchKeyword(upper, "CASE") || upper.startsWith("CASE ")) {
+        controlStack.push({ keyword: "CASE", line: lineIdx, col: 0 });
+        if (currentBlock) currentBlock.hasCaseElse.set(lineIdx, false);
+        continue;
+      }
+      if (matchKeyword(upper, "ELSE") && controlStack.length > 0) {
+        const top = controlStack[controlStack.length - 1];
+        if (top.keyword === "CASE" && currentBlock) {
+          currentBlock.hasCaseElse.set(top.line, true);
+        }
+        continue;
+      }
+      if ((upper === "IF" || upper.startsWith("IF ")) && !upper.startsWith("ELSIF")) {
+        controlStack.push({ keyword: "IF", line: lineIdx, col: 0 });
+      }
+      for (const openKw of ["FOR", "WHILE", "REPEAT", "REGION"]) {
+        if (matchKeyword(upper, openKw) || upper.startsWith(openKw + " ")) {
+          controlStack.push({ keyword: openKw, line: lineIdx, col: 0 });
+          break;
+        }
+      }
+      for (const closeKw of Object.keys(CONTROL_END_TO_OPEN)) {
+        if (matchKeyword(upper, closeKw)) {
+          const expectedOpen = CONTROL_END_TO_OPEN[closeKw];
+          if (controlStack.length > 0 && controlStack[controlStack.length - 1].keyword === expectedOpen) {
+            controlStack.pop();
+          } else {
+            result.unmatchedCloses.push({ keyword: closeKw, line: lineIdx, col: 0 });
+          }
+          break;
+        }
+      }
+      if (matchKeyword(upper, "EXIT") || matchKeyword(upper, "CONTINUE")) {
+        const inLoop = controlStack.some((e) => LOOP_KEYWORDS.has(e.keyword));
+        if (!inLoop) {
+          result.exitOutsideLoop.push({
+            keyword: upper.startsWith("EXIT") ? "EXIT" : "CONTINUE",
+            line: lineIdx,
+            col: 0
+          });
+        }
+      }
+    }
+  }
+  result.unmatchedOpens.push(...blockStack, ...varStack, ...controlStack);
+  return result;
+}
+function matchKeyword(upper, keyword) {
+  if (upper === keyword) return true;
+  if (upper === keyword + ";") return true;
+  if (upper.startsWith(keyword + " ") || upper.startsWith(keyword + "	") || upper.startsWith(keyword + ";")) return true;
+  return false;
+}
+function extractBlockName(line) {
+  const match = line.match(/"([^"]+)"/);
+  return match ? match[1] : "";
+}
+function stripBlockComments(line) {
+  return line.replace(/\(\*[^]*?\*\)/g, (m) => " ".repeat(m.length));
+}
+function lineCommentIndex(line) {
+  let inString = false;
+  let stringChar = "";
+  for (let i = 0; i < line.length - 1; i++) {
+    const ch = line[i];
+    if (inString) {
+      if (ch === stringChar) inString = false;
+    } else {
+      if (ch === "'" || ch === '"') {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === "/" && line[i + 1] === "/") {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+function stripStrings(line) {
+  return line.replace(/'[^']*'/g, (m) => "'" + " ".repeat(m.length - 2) + "'").replace(/"[^"]*"/g, (m) => '"' + " ".repeat(m.length - 2) + '"');
+}
+var KEYWORD_SET = /* @__PURE__ */ new Set([
+  "IF",
+  "THEN",
+  "ELSIF",
+  "ELSE",
+  "END_IF",
+  "FOR",
+  "TO",
+  "BY",
+  "DO",
+  "END_FOR",
+  "WHILE",
+  "END_WHILE",
+  "REPEAT",
+  "UNTIL",
+  "END_REPEAT",
+  "CASE",
+  "OF",
+  "END_CASE",
+  "RETURN",
+  "EXIT",
+  "CONTINUE",
+  "BEGIN",
+  "END_VAR",
+  "END_STRUCT",
+  "REGION",
+  "END_REGION",
+  "TRUE",
+  "FALSE",
+  "AND",
+  "OR",
+  "XOR",
+  "NOT",
+  "MOD"
+]);
+function isKeyword(word) {
+  return KEYWORD_SET.has(word.toUpperCase());
+}
+
+// src/rules.ts
+var vscode4 = __toESM(require("vscode"));
+function runRules(result, lines) {
+  const diagnostics = [];
+  diagnostics.push(...ruleUnmatchedControlFlow(result));
+  diagnostics.push(...ruleUnmatchedVarSections(result));
+  diagnostics.push(...ruleUnmatchedBlocks(result));
+  diagnostics.push(...ruleDuplicateVariables(result));
+  diagnostics.push(...ruleExitOutsideLoop(result));
+  diagnostics.push(...ruleUnusedVariables(result));
+  diagnostics.push(...ruleMissingVersion(result));
+  diagnostics.push(...ruleMissingPragma(result));
+  diagnostics.push(...ruleCaseWithoutElse(result));
+  diagnostics.push(...ruleEmptyBlock(result));
+  diagnostics.push(...ruleNamingConvention(result));
+  return diagnostics;
+}
+function ruleUnmatchedControlFlow(result) {
+  const diags = [];
+  for (const entry of result.unmatchedOpens) {
+    if (["IF", "FOR", "WHILE", "REPEAT", "CASE", "REGION"].includes(entry.keyword)) {
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' has no matching 'END_${entry.keyword}'`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL001"
+      });
+    }
+  }
+  for (const entry of result.unmatchedCloses) {
+    if (entry.keyword.startsWith("END_") && !entry.keyword.startsWith("END_FUNCTION") && !entry.keyword.startsWith("END_DATA") && !entry.keyword.startsWith("END_ORGANIZATION") && !entry.keyword.startsWith("END_TYPE") && entry.keyword !== "END_VAR" && entry.keyword !== "END_STRUCT") {
+      const openKw = entry.keyword.replace("END_", "");
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' without matching '${openKw}'`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL001"
+      });
+    }
+  }
+  return diags;
+}
+function ruleUnmatchedVarSections(result) {
+  const diags = [];
+  for (const entry of result.unmatchedOpens) {
+    if (entry.keyword.startsWith("VAR") || entry.keyword === "STRUCT") {
+      const endKw = entry.keyword === "STRUCT" ? "END_STRUCT" : "END_VAR";
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' has no matching '${endKw}'`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL002"
+      });
+    }
+  }
+  for (const entry of result.unmatchedCloses) {
+    if (entry.keyword === "END_VAR" || entry.keyword === "END_STRUCT") {
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' without matching opening declaration`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL002"
+      });
+    }
+  }
+  return diags;
+}
+function ruleUnmatchedBlocks(result) {
+  const diags = [];
+  for (const entry of result.unmatchedOpens) {
+    if (["FUNCTION_BLOCK", "FUNCTION", "ORGANIZATION_BLOCK", "DATA_BLOCK", "TYPE"].includes(entry.keyword)) {
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' has no matching 'END_${entry.keyword}'`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL003"
+      });
+    }
+  }
+  for (const entry of result.unmatchedCloses) {
+    if (["END_FUNCTION_BLOCK", "END_FUNCTION", "END_ORGANIZATION_BLOCK", "END_DATA_BLOCK", "END_TYPE"].includes(entry.keyword)) {
+      diags.push({
+        line: entry.line,
+        col: 0,
+        message: `'${entry.keyword}' without matching block declaration`,
+        severity: vscode4.DiagnosticSeverity.Error,
+        code: "SCL003"
+      });
+    }
+  }
+  return diags;
+}
+function ruleDuplicateVariables(result) {
+  const diags = [];
+  const byBlock = /* @__PURE__ */ new Map();
+  for (const v of result.variables) {
+    const key = v.block;
+    if (!byBlock.has(key)) byBlock.set(key, /* @__PURE__ */ new Map());
+    const blockVars = byBlock.get(key);
+    const lower = v.name.toLowerCase();
+    if (!blockVars.has(lower)) blockVars.set(lower, []);
+    blockVars.get(lower).push({ line: v.line, col: v.col });
+  }
+  for (const [, blockVars] of byBlock) {
+    for (const [name, locations] of blockVars) {
+      if (locations.length > 1) {
+        for (let i = 1; i < locations.length; i++) {
+          diags.push({
+            line: locations[i].line,
+            col: locations[i].col,
+            message: `Duplicate variable '${name}' (first declared on line ${locations[0].line + 1})`,
+            severity: vscode4.DiagnosticSeverity.Error,
+            code: "SCL004"
+          });
+        }
+      }
+    }
+  }
+  return diags;
+}
+function ruleExitOutsideLoop(result) {
+  return result.exitOutsideLoop.map((entry) => ({
+    line: entry.line,
+    col: 0,
+    message: `'${entry.keyword}' used outside of a FOR/WHILE/REPEAT loop`,
+    severity: vscode4.DiagnosticSeverity.Error,
+    code: "SCL005"
+  }));
+}
+function ruleUnusedVariables(result) {
+  const diags = [];
+  for (const v of result.variables) {
+    const block = result.blocks.find((b) => b.name === v.block);
+    if (block && (block.type === "DATA_BLOCK" || block.type === "TYPE")) continue;
+    if (v.section === "VAR_OUTPUT") continue;
+    const lower = v.name.toLowerCase();
+    if (!result.usedVariables.has(lower)) {
+      diags.push({
+        line: v.line,
+        col: v.col,
+        message: `Variable '${v.name}' is declared but never used`,
+        severity: vscode4.DiagnosticSeverity.Warning,
+        code: "SCL101"
+      });
+    }
+  }
+  return diags;
+}
+function ruleMissingVersion(result) {
+  const diags = [];
+  for (const block of result.blocks) {
+    if (!block.hasVersion) {
+      diags.push({
+        line: block.line,
+        col: 0,
+        message: `Block '${block.name || block.type}' has no VERSION declaration`,
+        severity: vscode4.DiagnosticSeverity.Warning,
+        code: "SCL102"
+      });
+    }
+  }
+  return diags;
+}
+function ruleMissingPragma(result) {
+  const diags = [];
+  for (const block of result.blocks) {
+    if (block.type === "TYPE") continue;
+    if (!block.hasPragma) {
+      diags.push({
+        line: block.line,
+        col: 0,
+        message: `Block '${block.name || block.type}' has no { S7_Optimized_Access } pragma`,
+        severity: vscode4.DiagnosticSeverity.Warning,
+        code: "SCL103"
+      });
+    }
+  }
+  return diags;
+}
+function ruleCaseWithoutElse(result) {
+  const diags = [];
+  for (const block of result.blocks) {
+    for (const [caseLine, hasElse] of block.hasCaseElse) {
+      if (!hasElse) {
+        diags.push({
+          line: caseLine,
+          col: 0,
+          message: "CASE statement has no ELSE branch",
+          severity: vscode4.DiagnosticSeverity.Warning,
+          code: "SCL104"
+        });
+      }
+    }
+  }
+  return diags;
+}
+function ruleEmptyBlock(result) {
+  const diags = [];
+  for (const block of result.blocks) {
+    if (block.type === "DATA_BLOCK" || block.type === "TYPE") continue;
+    if (block.hasBegin && !block.hasCode) {
+      diags.push({
+        line: block.line,
+        col: 0,
+        message: `Block '${block.name || block.type}' has an empty BEGIN section`,
+        severity: vscode4.DiagnosticSeverity.Warning,
+        code: "SCL105"
+      });
+    }
+  }
+  return diags;
+}
+function ruleNamingConvention(result) {
+  const diags = [];
+  const prefixMap = {
+    "FUNCTION_BLOCK": "FB_",
+    "FUNCTION": "FC_",
+    "DATA_BLOCK": "DB_"
+  };
+  for (const block of result.blocks) {
+    const expected = prefixMap[block.type];
+    if (expected && block.name && !block.name.startsWith(expected) && !block.name.startsWith("UDT_")) {
+      diags.push({
+        line: block.line,
+        col: 0,
+        message: `Block '${block.name}' does not follow naming convention '${expected}...'`,
+        severity: vscode4.DiagnosticSeverity.Hint,
+        code: "SCL201"
+      });
+    }
+  }
+  return diags;
+}
+
+// src/linter.ts
+var SclLinter = class {
+  constructor(context) {
+    this.debounceTimers = /* @__PURE__ */ new Map();
+    this.debounceMs = 500;
+    this.diagnosticCollection = vscode5.languages.createDiagnosticCollection("scl");
+    context.subscriptions.push(this.diagnosticCollection);
+    context.subscriptions.push(
+      vscode5.workspace.onDidSaveTextDocument((doc) => {
+        if (doc.languageId === "scl") this.lintDocument(doc);
+      })
+    );
+    context.subscriptions.push(
+      vscode5.workspace.onDidOpenTextDocument((doc) => {
+        if (doc.languageId === "scl") this.lintDocument(doc);
+      })
+    );
+    context.subscriptions.push(
+      vscode5.workspace.onDidChangeTextDocument((event) => {
+        if (event.document.languageId === "scl") {
+          this.lintDocumentDebounced(event.document);
+        }
+      })
+    );
+    context.subscriptions.push(
+      vscode5.workspace.onDidCloseTextDocument((doc) => {
+        this.diagnosticCollection.delete(doc.uri);
+        const key = doc.uri.toString();
+        const timer = this.debounceTimers.get(key);
+        if (timer) {
+          clearTimeout(timer);
+          this.debounceTimers.delete(key);
+        }
+      })
+    );
+    for (const doc of vscode5.workspace.textDocuments) {
+      if (doc.languageId === "scl") this.lintDocument(doc);
+    }
+  }
+  lintDocumentDebounced(document) {
+    const key = document.uri.toString();
+    const existing = this.debounceTimers.get(key);
+    if (existing) clearTimeout(existing);
+    this.debounceTimers.set(
+      key,
+      setTimeout(() => {
+        this.debounceTimers.delete(key);
+        this.lintDocument(document);
+      }, this.debounceMs)
+    );
+  }
+  lintDocument(document) {
+    const text = document.getText();
+    const lines = text.split(/\r?\n/);
+    const parseResult = parse(text);
+    const lintDiags = runRules(parseResult, lines);
+    const diagnostics = lintDiags.map((d) => {
+      const lineText = lines[d.line] || "";
+      const startCol = d.col;
+      const endCol = d.endCol ?? lineText.trimEnd().length;
+      const range = new vscode5.Range(d.line, startCol, d.line, Math.max(endCol, startCol + 1));
+      const diag = new vscode5.Diagnostic(range, d.message, d.severity);
+      diag.code = d.code;
+      diag.source = "SCL";
+      return diag;
+    });
+    this.diagnosticCollection.set(document.uri, diagnostics);
+  }
+};
+
 // src/extension.ts
 function activate(context) {
   const selector = { language: "scl", scheme: "file" };
   context.subscriptions.push(
-    vscode4.languages.registerCompletionItemProvider(
+    vscode6.languages.registerCompletionItemProvider(
       selector,
       new SclCompletionProvider(),
       ".",
@@ -497,16 +1129,17 @@ function activate(context) {
     )
   );
   context.subscriptions.push(
-    vscode4.languages.registerHoverProvider(selector, new SclHoverProvider())
+    vscode6.languages.registerHoverProvider(selector, new SclHoverProvider())
   );
   context.subscriptions.push(
-    vscode4.languages.registerSignatureHelpProvider(
+    vscode6.languages.registerSignatureHelpProvider(
       selector,
       new SclSignatureHelpProvider(),
       "(",
       ","
     )
   );
+  new SclLinter(context);
 }
 function deactivate() {
 }

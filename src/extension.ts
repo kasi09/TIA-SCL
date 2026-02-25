@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { SclCompletionProvider } from "./completionProvider";
 import { SclHoverProvider } from "./hoverProvider";
 import { SclSignatureHelpProvider } from "./signatureProvider";
+import { SclLinter } from "./linter";
 
 export function activate(context: vscode.ExtensionContext) {
   const selector: vscode.DocumentSelector = { language: "scl", scheme: "file" };
@@ -28,6 +29,9 @@ export function activate(context: vscode.ExtensionContext) {
       "(", ","
     )
   );
+
+  // Linter - real-time diagnostics
+  new SclLinter(context);
 }
 
 export function deactivate() {}
