@@ -24,7 +24,7 @@ export class SclCompletionProvider implements vscode.CompletionItemProvider {
 
     // After '#' -> suggest local variables from the current block
     if (context.triggerCharacter === "#" || prefix.endsWith("#")) {
-      items.push(...this.getLocalVariables(document, position));
+      items.push(...this.getLocalVariables(document));
       return items;
     }
 
@@ -94,7 +94,7 @@ export class SclCompletionProvider implements vscode.CompletionItemProvider {
     });
   }
 
-  private getLocalVariables(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+  private getLocalVariables(document: vscode.TextDocument): vscode.CompletionItem[] {
     const items: vscode.CompletionItem[] = [];
     const seen = new Set<string>();
     const text = document.getText();

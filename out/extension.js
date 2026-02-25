@@ -232,7 +232,7 @@ var SclCompletionProvider = class {
     const prefix = line.substring(0, position.character);
     const items = [];
     if (context.triggerCharacter === "#" || prefix.endsWith("#")) {
-      items.push(...this.getLocalVariables(document, position));
+      items.push(...this.getLocalVariables(document));
       return items;
     }
     if (context.triggerCharacter === "%" || prefix.endsWith("%")) {
@@ -289,7 +289,7 @@ var SclCompletionProvider = class {
       return ci;
     });
   }
-  getLocalVariables(document, position) {
+  getLocalVariables(document) {
     const items = [];
     const seen = /* @__PURE__ */ new Set();
     const text = document.getText();
@@ -653,7 +653,8 @@ function parse(text) {
     }
     if (varMatched) continue;
     if (currentVarSection && !afterBegin) {
-      const varMatch = trimmed.match(/^(\w+)\s*:\s*(.+?)(?:\s*:=\s*.+?)?\s*;/);
+      const origTrimmed = originalLine.trim();
+      const varMatch = origTrimmed.match(/^(\w+)\s*:\s*(.+?)(?:\s*:=\s*.+?)?\s*;/);
       if (varMatch) {
         const varName = varMatch[1];
         let varType = varMatch[2].trim().replace(/;$/, "").trim();
@@ -664,12 +665,12 @@ function parse(text) {
             section: currentVarSection,
             block: currentBlock?.name || "",
             line: lineIdx,
-            col: trimmed.indexOf(varName)
+            col: origTrimmed.indexOf(varName)
           });
         }
         continue;
       }
-      const simpleMatch = trimmed.match(/^(\w+)\s*:\s*(\S+)/);
+      const simpleMatch = origTrimmed.match(/^(\w+)\s*:\s*(\S+)/);
       if (simpleMatch && !isKeyword(simpleMatch[1])) {
         result.variables.push({
           name: simpleMatch[1],
@@ -686,7 +687,7 @@ function parse(text) {
       if (currentBlock && trimmed !== ";" && !upper.startsWith("END_")) {
         currentBlock.hasCode = true;
       }
-      if (matchKeyword(upper, "CASE") || upper.startsWith("CASE ")) {
+      if (matchKeyword(upper, "CASE")) {
         controlStack.push({ keyword: "CASE", line: lineIdx, col: 0 });
         if (currentBlock) currentBlock.hasCaseElse.set(lineIdx, false);
         continue;
@@ -702,7 +703,7 @@ function parse(text) {
         controlStack.push({ keyword: "IF", line: lineIdx, col: 0 });
       }
       for (const openKw of ["FOR", "WHILE", "REPEAT", "REGION"]) {
-        if (matchKeyword(upper, openKw) || upper.startsWith(openKw + " ")) {
+        if (matchKeyword(upper, openKw)) {
           controlStack.push({ keyword: openKw, line: lineIdx, col: 0 });
           break;
         }
@@ -744,7 +745,7 @@ function extractBlockName(line) {
   return match ? match[1] : "";
 }
 function stripBlockComments(line) {
-  return line.replace(/\(\*[^]*?\*\)/g, (m) => " ".repeat(m.length));
+  return line.replace(/\(\*[\s\S]*?\*\)/g, (m) => " ".repeat(m.length));
 }
 function lineCommentIndex(line) {
   let inString = false;
@@ -808,7 +809,7 @@ function isKeyword(word) {
 
 // src/rules.ts
 var vscode4 = __toESM(require("vscode"));
-function runRules(result, lines) {
+function runRules(result) {
   const diagnostics = [];
   diagnostics.push(...ruleUnmatchedControlFlow(result));
   diagnostics.push(...ruleUnmatchedVarSections(result));
@@ -1100,7 +1101,7 @@ var SclLinter = class {
     const text = document.getText();
     const lines = text.split(/\r?\n/);
     const parseResult = parse(text);
-    const lintDiags = runRules(parseResult, lines);
+    const lintDiags = runRules(parseResult);
     const diagnostics = lintDiags.map((d) => {
       const lineText = lines[d.line] || "";
       const startCol = d.col;

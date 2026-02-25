@@ -8,7 +8,7 @@
  */
 
 import * as vscode from "vscode";
-import { ParseResult, BlockDecl } from "./parser";
+import { ParseResult } from "./parser";
 
 export interface LintDiagnostic {
   line: number;
@@ -21,7 +21,7 @@ export interface LintDiagnostic {
 
 // ─── Run all rules ──────────────────────────────────────────────────────────
 
-export function runRules(result: ParseResult, lines: string[]): LintDiagnostic[] {
+export function runRules(result: ParseResult): LintDiagnostic[] {
   const diagnostics: LintDiagnostic[] = [];
 
   diagnostics.push(...ruleUnmatchedControlFlow(result));

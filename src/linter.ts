@@ -6,7 +6,7 @@
 
 import * as vscode from "vscode";
 import { parse } from "./parser";
-import { runRules, LintDiagnostic } from "./rules";
+import { runRules } from "./rules";
 
 export class SclLinter {
   private diagnosticCollection: vscode.DiagnosticCollection;
@@ -81,7 +81,7 @@ export class SclLinter {
     const parseResult = parse(text);
 
     // Run rules
-    const lintDiags = runRules(parseResult, lines);
+    const lintDiags = runRules(parseResult);
 
     // Convert to VS Code diagnostics
     const diagnostics = lintDiags.map((d) => {

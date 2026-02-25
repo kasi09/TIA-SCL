@@ -251,7 +251,9 @@ export function parse(text: string): ParseResult {
 
     // ── Variable declarations (inside VAR sections) ────────────
     if (currentVarSection && !afterBegin) {
-      const varMatch = trimmed.match(/^(\w+)\s*:\s*(.+?)(?:\s*:=\s*.+?)?\s*;/);
+      // Use originalLine (before stripStrings) to preserve UDT type names like "UDT_Motor"
+      const origTrimmed = originalLine.trim();
+      const varMatch = origTrimmed.match(/^(\w+)\s*:\s*(.+?)(?:\s*:=\s*.+?)?\s*;/);
       if (varMatch) {
         const varName = varMatch[1];
         let varType = varMatch[2].trim().replace(/;$/, "").trim();
@@ -262,13 +264,13 @@ export function parse(text: string): ParseResult {
             section: currentVarSection,
             block: currentBlock?.name || "",
             line: lineIdx,
-            col: trimmed.indexOf(varName),
+            col: origTrimmed.indexOf(varName),
           });
         }
         continue;
       }
       // Simple declaration without ; on same line
-      const simpleMatch = trimmed.match(/^(\w+)\s*:\s*(\S+)/);
+      const simpleMatch = origTrimmed.match(/^(\w+)\s*:\s*(\S+)/);
       if (simpleMatch && !isKeyword(simpleMatch[1])) {
         result.variables.push({
           name: simpleMatch[1],
@@ -289,7 +291,7 @@ export function parse(text: string): ParseResult {
       }
 
       // CASE ... OF
-      if (matchKeyword(upper, "CASE") || upper.startsWith("CASE ")) {
+      if (matchKeyword(upper, "CASE")) {
         controlStack.push({ keyword: "CASE", line: lineIdx, col: 0 });
         if (currentBlock) currentBlock.hasCaseElse.set(lineIdx, false);
         continue;
@@ -311,7 +313,7 @@ export function parse(text: string): ParseResult {
 
       // FOR, WHILE, REPEAT, REGION
       for (const openKw of ["FOR", "WHILE", "REPEAT", "REGION"]) {
-        if (matchKeyword(upper, openKw) || upper.startsWith(openKw + " ")) {
+        if (matchKeyword(upper, openKw)) {
           controlStack.push({ keyword: openKw, line: lineIdx, col: 0 });
           break;
         }
@@ -364,7 +366,7 @@ function extractBlockName(line: string): string {
 }
 
 function stripBlockComments(line: string): string {
-  return line.replace(/\(\*[^]*?\*\)/g, (m) => " ".repeat(m.length));
+  return line.replace(/\(\*[\s\S]*?\*\)/g, (m) => " ".repeat(m.length));
 }
 
 function lineCommentIndex(line: string): number {
