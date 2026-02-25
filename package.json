@@ -2,7 +2,7 @@
   "name": "tia-scl",
   "displayName": "TIA-SCL",
   "description": "Siemens SCL (Structured Control Language) syntax highlighting, snippets and autocomplete for TIA Portal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "kasi09",
   "author": "kasi09",
   "license": "MIT",
@@ -16,7 +16,8 @@
   "categories": [
     "Programming Languages",
     "Snippets",
-    "Linters"
+    "Linters",
+    "Formatters"
   ],
   "keywords": [
     "scl",
@@ -67,7 +68,8 @@
   "scripts": {
     "build": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
-    "vscode:prepublish": "npm run build"
+    "vscode:prepublish": "npm run build",
+    "package": "npx @vscode/vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.109.0",

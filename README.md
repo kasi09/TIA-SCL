@@ -102,6 +102,44 @@ Real-time error checking as you type:
 |---|---|
 | SCL201 | Naming convention (FB_, FC_, DB_ prefix suggestion) |
 
+### Symbol Outline / Breadcrumbs
+
+Full document outline in the Explorer panel and breadcrumb navigation:
+
+- **Blocks** - FUNCTION_BLOCK, FUNCTION, ORGANIZATION_BLOCK, DATA_BLOCK, TYPE
+- **VAR sections** - VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR_TEMP, VAR as nested children
+- **Variables** - All declared variables grouped under their section
+- Correct SymbolKind mapping (FB=Class, FC=Function, OB=Event, DB=Struct)
+
+### Go to Definition
+
+`Ctrl+Click` or `F12` to navigate:
+
+- **`#Variable`** - Jump to variable declaration in VAR section
+- **`"BlockName"`** - Jump to block declaration (FUNCTION_BLOCK, FUNCTION, etc.)
+- **Plain identifiers** - Fallback match against all declared variables (case-insensitive)
+
+### Code Formatting
+
+`Shift+Alt+F` to format SCL code:
+
+- **Indentation** - 4 spaces per nesting level, correct for all block/control structures
+- **Keyword casing** - All SCL keywords converted to UPPERCASE
+- **Spacing** - Consistent spacing around `:=`, `:`, `,`
+- **Preserves** - Strings, comments, and pragmas are never modified
+- **CASE labels** - Correct indentation for numeric case labels
+
+### Quick Fixes
+
+`Ctrl+.` on linter warnings to auto-fix:
+
+| Code | Quick Fix |
+|---|---|
+| SCL102 | Add `VERSION : 0.1` declaration |
+| SCL103 | Add `{ S7_Optimized_Access := 'TRUE' }` pragma |
+| SCL104 | Add `ELSE` branch to CASE statement |
+| SCL201 | Rename block with `FB_`/`FC_`/`DB_` prefix |
+
 ### Code Folding
 
 Automatic folding for:
@@ -124,16 +162,25 @@ Matching of parentheses, brackets, and `(* *)` comments.
 
 Search for **TIA-SCL** in the Extensions view (`Ctrl+Shift+X`).
 
+### From VSIX File
+
+Download the `.vsix` from [Releases](https://github.com/kasi09/TIA-SCL/releases), then:
+
+```bash
+code --install-extension tia-scl-0.4.0.vsix
+```
+
+Or in VS Code: `Ctrl+Shift+P` → *Extensions: Install from VSIX...*
+
 ### Manual Installation
 
 ```bash
-# Clone and install
 git clone https://github.com/kasi09/TIA-SCL.git
 cd TIA-SCL
-# Copy to VS Code extensions folder
-# Windows:
+npm install && npm run build
+# Copy to extensions folder (Windows):
 cp -r . "%USERPROFILE%/.vscode/extensions/tia-scl"
-# Then restart VS Code
+# Restart VS Code
 ```
 
 ## File Association

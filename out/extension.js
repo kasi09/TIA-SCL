@@ -34,7 +34,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode6 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/completionProvider.ts
 var vscode = __toESM(require("vscode"));
@@ -1116,11 +1116,560 @@ var SclLinter = class {
   }
 };
 
+// src/symbolProvider.ts
+var vscode6 = __toESM(require("vscode"));
+var SclDocumentSymbolProvider = class {
+  provideDocumentSymbols(document) {
+    const text = document.getText();
+    const result = parse(text);
+    const symbols = [];
+    for (const block of result.blocks) {
+      const endLine = block.endLine >= 0 ? block.endLine : block.line;
+      const blockRange = new vscode6.Range(block.line, 0, endLine, document.lineAt(endLine).text.length);
+      const selRange = new vscode6.Range(block.line, 0, block.line, document.lineAt(block.line).text.length);
+      const blockSymbol = new vscode6.DocumentSymbol(
+        block.name || block.type,
+        block.type.replace(/_/g, " "),
+        blockKind(block.type),
+        blockRange,
+        selRange
+      );
+      const blockVars = result.variables.filter((v) => v.block === block.name);
+      const sections = /* @__PURE__ */ new Map();
+      for (const v of blockVars) {
+        if (!sections.has(v.section)) sections.set(v.section, []);
+        sections.get(v.section).push(v);
+      }
+      for (const [sectionName, vars] of sections) {
+        const firstVar = vars[0];
+        const lastVar = vars[vars.length - 1];
+        const secStart = Math.max(firstVar.line - 1, block.line);
+        const secEnd = Math.min(lastVar.line + 1, endLine);
+        const secRange = new vscode6.Range(secStart, 0, secEnd, 0);
+        const secSelRange = new vscode6.Range(secStart, 0, secStart, sectionName.length);
+        const sectionSymbol = new vscode6.DocumentSymbol(
+          sectionName,
+          `${vars.length} variable(s)`,
+          vscode6.SymbolKind.Namespace,
+          secRange,
+          secSelRange
+        );
+        for (const v of vars) {
+          const varLine = document.lineAt(v.line).text;
+          const varRange = new vscode6.Range(v.line, 0, v.line, varLine.length);
+          const varSelRange = new vscode6.Range(v.line, v.col, v.line, v.col + v.name.length);
+          sectionSymbol.children.push(
+            new vscode6.DocumentSymbol(
+              v.name,
+              v.type,
+              varKind(v.section),
+              varRange,
+              varSelRange
+            )
+          );
+        }
+        blockSymbol.children.push(sectionSymbol);
+      }
+      symbols.push(blockSymbol);
+    }
+    return symbols;
+  }
+};
+function blockKind(type) {
+  switch (type) {
+    case "FUNCTION_BLOCK":
+      return vscode6.SymbolKind.Class;
+    case "FUNCTION":
+      return vscode6.SymbolKind.Function;
+    case "ORGANIZATION_BLOCK":
+      return vscode6.SymbolKind.Event;
+    case "DATA_BLOCK":
+      return vscode6.SymbolKind.Struct;
+    case "TYPE":
+      return vscode6.SymbolKind.Struct;
+    default:
+      return vscode6.SymbolKind.Module;
+  }
+}
+function varKind(section) {
+  switch (section) {
+    case "VAR_INPUT":
+      return vscode6.SymbolKind.Property;
+    case "VAR_OUTPUT":
+      return vscode6.SymbolKind.Property;
+    case "VAR_IN_OUT":
+      return vscode6.SymbolKind.Property;
+    default:
+      return vscode6.SymbolKind.Variable;
+  }
+}
+
+// src/definitionProvider.ts
+var vscode7 = __toESM(require("vscode"));
+var SclDefinitionProvider = class {
+  provideDefinition(document, position) {
+    const text = document.getText();
+    const result = parse(text);
+    const line = document.lineAt(position).text;
+    const hashRange = document.getWordRangeAtPosition(position, /#[A-Za-z_]\w*/);
+    if (hashRange) {
+      const varName = document.getText(hashRange).substring(1);
+      return this.findVariable(document, result.variables, varName);
+    }
+    const quoted = this.getQuotedName(line, position.character);
+    if (quoted) {
+      return this.findBlock(document, result.blocks, quoted);
+    }
+    const wordRange = document.getWordRangeAtPosition(position, /[A-Za-z_]\w*/);
+    if (wordRange) {
+      const word = document.getText(wordRange);
+      return this.findVariable(document, result.variables, word);
+    }
+    return void 0;
+  }
+  findVariable(document, variables, name) {
+    const lower = name.toLowerCase();
+    const match = variables.find((v) => v.name.toLowerCase() === lower);
+    if (match) {
+      return new vscode7.Location(document.uri, new vscode7.Position(match.line, match.col));
+    }
+    return void 0;
+  }
+  findBlock(document, blocks, name) {
+    const match = blocks.find((b) => b.name === name);
+    if (match) {
+      return new vscode7.Location(document.uri, new vscode7.Position(match.line, 0));
+    }
+    return void 0;
+  }
+  getQuotedName(line, charPos) {
+    let start = -1;
+    for (let i = charPos; i >= 0; i--) {
+      if (line[i] === '"') {
+        start = i;
+        break;
+      }
+    }
+    if (start < 0) return void 0;
+    let end = -1;
+    for (let i = Math.max(charPos, start + 1); i < line.length; i++) {
+      if (line[i] === '"') {
+        end = i;
+        break;
+      }
+    }
+    if (end <= start) return void 0;
+    return line.substring(start + 1, end);
+  }
+};
+
+// src/formatter.ts
+var vscode8 = __toESM(require("vscode"));
+var SCL_KEYWORDS = /* @__PURE__ */ new Set([
+  // Block keywords
+  "FUNCTION_BLOCK",
+  "END_FUNCTION_BLOCK",
+  "FUNCTION",
+  "END_FUNCTION",
+  "ORGANIZATION_BLOCK",
+  "END_ORGANIZATION_BLOCK",
+  "DATA_BLOCK",
+  "END_DATA_BLOCK",
+  "TYPE",
+  "END_TYPE",
+  "INTERFACE",
+  "END_INTERFACE",
+  // Variable sections
+  "VAR_INPUT",
+  "VAR_OUTPUT",
+  "VAR_IN_OUT",
+  "VAR_TEMP",
+  "VAR_GLOBAL",
+  "VAR",
+  "END_VAR",
+  "STRUCT",
+  "END_STRUCT",
+  // Control flow
+  "IF",
+  "THEN",
+  "ELSIF",
+  "ELSE",
+  "END_IF",
+  "FOR",
+  "TO",
+  "BY",
+  "DO",
+  "END_FOR",
+  "WHILE",
+  "END_WHILE",
+  "REPEAT",
+  "UNTIL",
+  "END_REPEAT",
+  "CASE",
+  "OF",
+  "END_CASE",
+  "RETURN",
+  "EXIT",
+  "CONTINUE",
+  "GOTO",
+  "BEGIN",
+  "REGION",
+  "END_REGION",
+  // Operators and literals
+  "AND",
+  "OR",
+  "XOR",
+  "NOT",
+  "MOD",
+  "TRUE",
+  "FALSE",
+  "NULL",
+  // Modifiers
+  "VERSION",
+  "RETAIN",
+  "NON_RETAIN",
+  "CONSTANT",
+  "ARRAY",
+  "REF_TO",
+  // Data types
+  "BOOL",
+  "BYTE",
+  "CHAR",
+  "WCHAR",
+  "SINT",
+  "USINT",
+  "INT",
+  "UINT",
+  "DINT",
+  "UDINT",
+  "LINT",
+  "ULINT",
+  "WORD",
+  "DWORD",
+  "LWORD",
+  "REAL",
+  "LREAL",
+  "STRING",
+  "WSTRING",
+  "TIME",
+  "LTIME",
+  "DATE",
+  "DATE_AND_TIME",
+  "DTL",
+  "TIME_OF_DAY",
+  "S5TIME",
+  "VOID",
+  "ANY",
+  "POINTER",
+  "VARIANT",
+  "DB_ANY",
+  "TON",
+  "TOF",
+  "TP",
+  "TONR",
+  "CTU",
+  "CTD",
+  "CTUD",
+  "R_TRIG",
+  "F_TRIG",
+  "IEC_TIMER",
+  "IEC_COUNTER"
+]);
+function shouldIncreaseIndent(upper) {
+  if (/^(FUNCTION_BLOCK|FUNCTION|ORGANIZATION_BLOCK|DATA_BLOCK|TYPE|INTERFACE)\b/.test(upper)) return true;
+  if (/^(VAR_INPUT|VAR_OUTPUT|VAR_IN_OUT|VAR_TEMP|VAR_GLOBAL|STRUCT)\b/.test(upper)) return true;
+  if (/^VAR\b/.test(upper) && !/^VAR_/.test(upper)) return true;
+  if (upper === "BEGIN") return true;
+  if (/^IF\b.*\bTHEN\s*$/.test(upper)) return true;
+  if (/^ELSIF\b.*\bTHEN\s*$/.test(upper)) return true;
+  if (/^ELSE\s*$/.test(upper) || upper === "ELSE") return true;
+  if (/^FOR\b.*\bDO\s*$/.test(upper)) return true;
+  if (/^WHILE\b.*\bDO\s*$/.test(upper)) return true;
+  if (upper === "REPEAT") return true;
+  if (/^CASE\b.*\bOF\s*$/.test(upper)) return true;
+  if (/^REGION\b/.test(upper)) return true;
+  return false;
+}
+function shouldDecreaseIndent(upper) {
+  if (/^(END_FUNCTION_BLOCK|END_FUNCTION|END_ORGANIZATION_BLOCK|END_DATA_BLOCK|END_TYPE|END_INTERFACE)\b/.test(upper)) return true;
+  if (/^(END_VAR|END_STRUCT)\b/.test(upper)) return true;
+  if (/^(END_IF|END_FOR|END_WHILE|END_REPEAT|END_CASE|END_REGION)\b/.test(upper)) return true;
+  if (/^ELSIF\b/.test(upper)) return true;
+  if (/^ELSE\b/.test(upper)) return true;
+  if (/^UNTIL\b/.test(upper)) return true;
+  return false;
+}
+function splitLineComment(line) {
+  let inString = false;
+  let stringChar = "";
+  for (let i = 0; i < line.length - 1; i++) {
+    const ch = line[i];
+    if (inString) {
+      if (ch === stringChar) inString = false;
+    } else {
+      if (ch === "'" || ch === '"') {
+        inString = true;
+        stringChar = ch;
+      } else if (ch === "/" && line[i + 1] === "/") {
+        return { code: line.substring(0, i), comment: line.substring(i) };
+      }
+    }
+  }
+  return { code: line, comment: "" };
+}
+function protectStrings(code) {
+  const strings = [];
+  const protected_ = code.replace(/'[^']*'|"[^"]*"/g, (match) => {
+    strings.push(match);
+    return `\0STR${strings.length - 1}\0`;
+  });
+  return {
+    protected: protected_,
+    restore: (s) => s.replace(/\x00STR(\d+)\x00/g, (_, idx) => strings[Number(idx)])
+  };
+}
+function applyKeywordCasing(code) {
+  const { protected: p, restore } = protectStrings(code);
+  const result = p.replace(/\b([A-Za-z_][A-Za-z_0-9]*)\b/g, (match) => {
+    const upper = match.toUpperCase();
+    if (SCL_KEYWORDS.has(upper)) return upper;
+    return match;
+  });
+  return restore(result);
+}
+function applySpacing(code) {
+  const { protected: p, restore } = protectStrings(code);
+  let result = p;
+  result = result.replace(/\s*:=\s*/g, " := ");
+  result = result.replace(/([A-Za-z_]\w*)\s*:\s*(?!=)/g, "$1 : ");
+  result = result.replace(/,\s*/g, ", ");
+  result = result.replace(/([^ ]) {2,}/g, "$1 ");
+  return restore(result);
+}
+function formatScl(text, opts) {
+  const lines = text.split(/\r?\n/);
+  const result = [];
+  let indentLevel = 0;
+  let inBlockComment = false;
+  let inCase = false;
+  const indent = (level) => " ".repeat(Math.max(0, level) * opts.indentSize);
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    if (inBlockComment) {
+      const endIdx = rawLine.indexOf("*)");
+      if (endIdx >= 0) {
+        inBlockComment = false;
+      }
+      result.push(rawLine);
+      continue;
+    }
+    if (!rawLine.trim()) {
+      result.push("");
+      continue;
+    }
+    const trimmedRaw = rawLine.trim();
+    if (trimmedRaw.startsWith("(*") && !trimmedRaw.includes("*)")) {
+      result.push(indent(indentLevel) + trimmedRaw);
+      inBlockComment = true;
+      continue;
+    }
+    if (trimmedRaw.startsWith("{")) {
+      result.push(indent(indentLevel) + trimmedRaw);
+      continue;
+    }
+    const { code, comment } = splitLineComment(rawLine);
+    let formattedCode = code;
+    if (opts.uppercaseKeywords) {
+      formattedCode = applyKeywordCasing(formattedCode);
+    }
+    formattedCode = applySpacing(formattedCode);
+    const trimmedCode = formattedCode.trim();
+    if (!trimmedCode && comment) {
+      result.push(indent(indentLevel) + comment.trim());
+      continue;
+    }
+    if (!trimmedCode) {
+      result.push("");
+      continue;
+    }
+    const upper = trimmedCode.toUpperCase();
+    const decrease = shouldDecreaseIndent(upper);
+    const increase = shouldIncreaseIndent(upper);
+    const isCaseLabel = inCase && /^\d+[\d\s,]*:/.test(trimmedCode);
+    if (decrease && indentLevel > 0) {
+      indentLevel--;
+    }
+    if (/^CASE\b.*\bOF/i.test(upper)) {
+      inCase = true;
+    }
+    if (/^END_CASE\b/i.test(upper)) {
+      inCase = false;
+    }
+    let currentIndent;
+    if (isCaseLabel) {
+      currentIndent = indent(indentLevel + 1);
+    } else {
+      currentIndent = indent(indentLevel);
+    }
+    let formatted = currentIndent + trimmedCode;
+    if (comment) {
+      formatted += "  " + comment.trim();
+    }
+    result.push(formatted);
+    if (increase) {
+      indentLevel++;
+    }
+  }
+  return result.join("\n");
+}
+var SclFormattingProvider = class {
+  provideDocumentFormattingEdits(document, options) {
+    const text = document.getText();
+    const formatted = formatScl(text, {
+      indentSize: options.tabSize || 4,
+      uppercaseKeywords: true
+    });
+    if (formatted === text) return [];
+    const fullRange = new vscode8.Range(
+      document.positionAt(0),
+      document.positionAt(text.length)
+    );
+    return [vscode8.TextEdit.replace(fullRange, formatted)];
+  }
+};
+
+// src/quickFixes.ts
+var vscode9 = __toESM(require("vscode"));
+var SclCodeActionProvider = class {
+  static {
+    this.providedCodeActionKinds = [vscode9.CodeActionKind.QuickFix];
+  }
+  provideCodeActions(document, _range, context) {
+    const actions = [];
+    for (const diag of context.diagnostics) {
+      if (diag.source !== "SCL") continue;
+      switch (diag.code) {
+        case "SCL102":
+          actions.push(this.fixMissingVersion(document, diag));
+          break;
+        case "SCL103":
+          actions.push(this.fixMissingPragma(document, diag));
+          break;
+        case "SCL104":
+          actions.push(this.fixCaseWithoutElse(document, diag));
+          break;
+        case "SCL201": {
+          const a = this.fixNamingConvention(document, diag);
+          if (a) actions.push(a);
+          break;
+        }
+      }
+    }
+    return actions;
+  }
+  fixMissingVersion(document, diag) {
+    const action = new vscode9.CodeAction("Add VERSION : 0.1", vscode9.CodeActionKind.QuickFix);
+    action.diagnostics = [diag];
+    action.isPreferred = true;
+    const blockLine = diag.range.start.line;
+    let insertLine = blockLine + 1;
+    for (let i = blockLine + 1; i < Math.min(blockLine + 5, document.lineCount); i++) {
+      const trimmed = document.lineAt(i).text.trim();
+      if (trimmed.startsWith("{")) {
+        insertLine = i + 1;
+      } else {
+        break;
+      }
+    }
+    const edit = new vscode9.WorkspaceEdit();
+    edit.insert(document.uri, new vscode9.Position(insertLine, 0), "VERSION : 0.1\n");
+    action.edit = edit;
+    return action;
+  }
+  fixMissingPragma(document, diag) {
+    const action = new vscode9.CodeAction(
+      "Add { S7_Optimized_Access := 'TRUE' }",
+      vscode9.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    action.isPreferred = true;
+    const blockLine = diag.range.start.line;
+    const edit = new vscode9.WorkspaceEdit();
+    edit.insert(
+      document.uri,
+      new vscode9.Position(blockLine + 1, 0),
+      "{ S7_Optimized_Access := 'TRUE' }\n"
+    );
+    action.edit = edit;
+    return action;
+  }
+  fixCaseWithoutElse(document, diag) {
+    const action = new vscode9.CodeAction("Add ELSE branch", vscode9.CodeActionKind.QuickFix);
+    action.diagnostics = [diag];
+    const caseLine = diag.range.start.line;
+    const caseIndent = this.getIndent(document, caseLine);
+    const endCaseLine = this.findEndCase(document, caseLine);
+    const edit = new vscode9.WorkspaceEdit();
+    edit.insert(
+      document.uri,
+      new vscode9.Position(endCaseLine, 0),
+      `${caseIndent}    ELSE
+${caseIndent}        ;
+`
+    );
+    action.edit = edit;
+    return action;
+  }
+  fixNamingConvention(document, diag) {
+    const line = document.lineAt(diag.range.start.line).text;
+    const nameMatch = line.match(/"([^"]+)"/);
+    if (!nameMatch) return void 0;
+    const currentName = nameMatch[1];
+    const prefixMatch = diag.message.match(/'([A-Z]+_)\.\.\.'$/);
+    if (!prefixMatch) return void 0;
+    const prefix = prefixMatch[1];
+    const newName = prefix + currentName;
+    const action = new vscode9.CodeAction(
+      `Rename to "${newName}"`,
+      vscode9.CodeActionKind.QuickFix
+    );
+    action.diagnostics = [diag];
+    const edit = new vscode9.WorkspaceEdit();
+    const fullText = document.getText();
+    const escaped = currentName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`"${escaped}"`, "g");
+    let match;
+    while ((match = regex.exec(fullText)) !== null) {
+      const startPos = document.positionAt(match.index);
+      const endPos = document.positionAt(match.index + match[0].length);
+      edit.replace(document.uri, new vscode9.Range(startPos, endPos), `"${newName}"`);
+    }
+    action.edit = edit;
+    return action;
+  }
+  findEndCase(document, caseLine) {
+    let depth = 0;
+    for (let i = caseLine; i < document.lineCount; i++) {
+      const upper = document.lineAt(i).text.trim().toUpperCase();
+      if (/^CASE\b/.test(upper)) depth++;
+      if (/^END_CASE\b/.test(upper)) {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return caseLine;
+  }
+  getIndent(document, line) {
+    const match = document.lineAt(line).text.match(/^(\s*)/);
+    return match ? match[1] : "";
+  }
+};
+
 // src/extension.ts
 function activate(context) {
   const selector = { language: "scl", scheme: "file" };
   context.subscriptions.push(
-    vscode6.languages.registerCompletionItemProvider(
+    vscode10.languages.registerCompletionItemProvider(
       selector,
       new SclCompletionProvider(),
       ".",
@@ -1130,15 +1679,29 @@ function activate(context) {
     )
   );
   context.subscriptions.push(
-    vscode6.languages.registerHoverProvider(selector, new SclHoverProvider())
+    vscode10.languages.registerHoverProvider(selector, new SclHoverProvider())
   );
   context.subscriptions.push(
-    vscode6.languages.registerSignatureHelpProvider(
+    vscode10.languages.registerSignatureHelpProvider(
       selector,
       new SclSignatureHelpProvider(),
       "(",
       ","
     )
+  );
+  context.subscriptions.push(
+    vscode10.languages.registerDocumentSymbolProvider(selector, new SclDocumentSymbolProvider())
+  );
+  context.subscriptions.push(
+    vscode10.languages.registerDefinitionProvider(selector, new SclDefinitionProvider())
+  );
+  context.subscriptions.push(
+    vscode10.languages.registerDocumentFormattingEditProvider(selector, new SclFormattingProvider())
+  );
+  context.subscriptions.push(
+    vscode10.languages.registerCodeActionProvider(selector, new SclCodeActionProvider(), {
+      providedCodeActionKinds: SclCodeActionProvider.providedCodeActionKinds
+    })
   );
   new SclLinter(context);
 }
